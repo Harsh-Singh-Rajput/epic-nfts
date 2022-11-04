@@ -1,45 +1,115 @@
 // SPDX-License-Identifier: UNLICENSED
+pragma solidity 0.8.17;
 
-pragma solidity ^0.8.17;
 
-// We first import some OpenZeppelin Contracts.
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "hardhat/console.sol";
 
-// We inherit the contract we imported. This means we'll have access
-// to the inherited contract's methods.
-contract MyEpicNFT is ERC721 {
-  // Magic given to us by OpenZeppelin to help us keep track of tokenIds.
+// We need to import the helper functions from the contract that we copy/pasted.
+import { Base64 } from "./libraries/Base64.sol";
+
+contract MyEpicNFT is ERC721URIStorage {
   using Counters for Counters.Counter;
   Counters.Counter private _tokenIds;
 
-  // We need to pass the name of our NFTs token and its symbol.
+  // string baseSvg = "<svg xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='xMinYMin meet' viewBox='0 0 350 350'><style>.base { fill: white; font-family: serif; font-size: 24px; }</style><rect width='100%' height='100%' fill='black' /><text x='50%' y='50%' class='base' dominant-baseline='middle' text-anchor='middle'>";
+
+   // We split the SVG at the part where it asks for the background color.
+  string svgPartOne = "<svg xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='xMinYMin meet' viewBox='0 0 350 350'><style>.base { fill: white; font-family: serif; font-size: 24px; }</style><rect width='100%' height='100%' fill='";
+  string svgPartTwo = "'/><text x='50%' y='50%' class='base' dominant-baseline='middle' text-anchor='middle'>";
+
+
+  string[] firstWords = ["Fantastic", "Epic", "Terrible", "Crazy", "Wild", "Spooky"];
+  string[] secondWords = ["Cupcake", "Pizza", "Curry", "Chicken", "Salad", "Egg"];
+  string[] thirdWords = ["Narute", "Sakura", "Sasuke", "Obito", "Madara", "Hashirama"];
+
+  // Get fancy with it! Declare a bunch of colors.
+  string[] colors = ["red", "#08C2A8", "black", "yellow", "blue", "green"];
+
+  event NewEpicNFTMinted(address sender, uint256 tokenId);
+
   constructor() ERC721 ("SquareNFT", "SQUARE") {
     console.log("This is my NFT contract. Woah!");
+    makeAnEpicNFT();
   }
 
-  // A function our user will hit to get their NFT.
+  function pickRandomFirstWord(uint256 tokenId) public view returns (string memory) {
+    uint256 rand = random(string(abi.encodePacked("FIRST_WORD", Strings.toString(tokenId))));
+    rand = rand % firstWords.length;
+    return firstWords[rand];
+  }
+
+  function pickRandomSecondWord(uint256 tokenId) public view returns (string memory) {
+    uint256 rand = random(string(abi.encodePacked("SECOND_WORD", Strings.toString(tokenId))));
+    rand = rand % secondWords.length;
+    return secondWords[rand];
+  }
+
+  function pickRandomThirdWord(uint256 tokenId) public view returns (string memory) {
+    uint256 rand = random(string(abi.encodePacked("THIRD_WORD", Strings.toString(tokenId))));
+    rand = rand % thirdWords.length;
+    return thirdWords[rand];
+  }
+
+  // Same old stuff, pick a random color.
+  function pickRandomColor(uint256 tokenId) public view returns (string memory) {
+    uint256 rand = random(string(abi.encodePacked("COLOR", Strings.toString(tokenId))));
+    rand = rand % colors.length;
+    return colors[rand];
+  }
+
+  function random(string memory input) internal pure returns (uint256) {
+      return uint256(keccak256(abi.encodePacked(input)));
+  }
+
   function makeAnEpicNFT() public {
-     // Get the current tokenId, this starts at 0.
     uint256 newItemId = _tokenIds.current();
 
-     // Actually mint the NFT to the sender using msg.sender.
+    string memory first = pickRandomFirstWord(newItemId);
+    string memory second = pickRandomSecondWord(newItemId);
+    string memory third = pickRandomThirdWord(newItemId);
+    string memory combinedWord = string(abi.encodePacked(first, second, third));
+
+    // string memory finalSvg = string(abi.encodePacked(baseSvg, combinedWord, "</text></svg>"));
+
+    // Get all the JSON metadata in place and base64 encode it.
+    // Add the random color in.
+    string memory randomColor = pickRandomColor(newItemId);
+    string memory finalSvg = string(abi.encodePacked(svgPartOne, randomColor, svgPartTwo, combinedWord, "</text></svg>"));
+
+    string memory json = Base64.encode(
+        bytes(
+            string(
+                abi.encodePacked(
+                    '{"name": "',
+                    combinedWord,
+                    '", "description": "A highly acclaimed collection of squares.", "image": "data:image/svg+xml;base64,',
+                    Base64.encode(bytes(finalSvg)),
+                    '"}'
+                )
+            )
+        )
+    );
+
+    // Just like before, we prepend data:application/json;base64, to our data.
+    string memory finalTokenUri = string(
+        abi.encodePacked("data:application/json;base64,", json)
+    );
+
+    console.log("\n--------------------");
+    console.log(finalTokenUri);
+    console.log("--------------------\n");
+
     _safeMint(msg.sender, newItemId);
-
-    // Increment the counter for when the next NFT is minted.
+    
+    // Update your URI!!!
+    _setTokenURI(newItemId, finalTokenUri);
+  
     _tokenIds.increment();
-    tokenURI(newItemId);
+    console.log("An NFT w/ ID %s has been minted to %s", newItemId, msg.sender);
+    emit NewEpicNFTMinted(msg.sender, newItemId);
   }
-
-  // Set the NFT's metadata
-  function tokenURI(uint256 _tokenId) public view override returns (string memory) {
-    require(_exists(_tokenId));
-    console.log("An NFT w/ ID %s has been minted to %s", _tokenId, msg.sender);
-    return string(
-    abi.encodePacked(
-        "data:application/json;base64,ewogICAgIm5hbWUiOiAiRXBpY0xvcmRIYW1idXJnZXIiLAogICAgImRlc2NyaXB0aW9uIjogIkFuIE5GVCBjcmVhdGlvbiIsCiAgICAiaW1hZ2UiOiAiZGF0YTppbWFnZS9zdmcreG1sO2Jhc2U2NCxQSE4yWnlCNGJXeHVjejBpYUhSMGNEb3ZMM2QzZHk1M015NXZjbWN2TWpBd01DOXpkbWNpSUhCeVpYTmxjblpsUVhOd1pXTjBVbUYwYVc4OUluaE5hVzVaVFdsdUlHMWxaWFFpSUhacFpYZENiM2c5SWpBZ01DQXpOVEFnTXpVd0lqNE5DaUFnSUNBOGMzUjViR1UrTG1KaGMyVWdleUJtYVd4c09pQjNhR2wwWlRzZ1ptOXVkQzFtWVcxcGJIazZJSE5sY21sbU95Qm1iMjUwTFhOcGVtVTZJREUwY0hnN0lIMDhMM04wZVd4bFBnMEtJQ0FnSUR4eVpXTjBJSGRwWkhSb1BTSXhNREFsSWlCb1pXbG5hSFE5SWpFd01DVWlJR1pwYkd3OUltSnNZV05ySWlBdlBnMEtJQ0FnSUR4MFpYaDBJSGc5SWpVd0pTSWdlVDBpTlRBbElpQmpiR0Z6Y3owaVltRnpaU0lnWkc5dGFXNWhiblF0WW1GelpXeHBibVU5SW0xcFpHUnNaU0lnZEdWNGRDMWhibU5vYjNJOUltMXBaR1JzWlNJK1JYQnBZMHh2Y21SSVlXMWlkWEpuWlhJOEwzUmxlSFErRFFvOEwzTjJaejQ9Igp9"
-    )
-);
-  }
+  // makeAnEpicNFT();
 }

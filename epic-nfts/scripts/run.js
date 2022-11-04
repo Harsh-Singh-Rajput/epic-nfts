@@ -1,29 +1,19 @@
-const main = async () => {
-    const nftContractFactory = await hre.ethers.getContractFactory('MyEpicNFT');
-    const nftContract = await nftContractFactory.deploy();
-    await nftContract.deployed();
-    console.log("Contract deployed to:", nftContract.address);
-  
-    // Call the function.
-    let txn = await nftContract.makeAnEpicNFT()
-    // Wait for it to be mined.
-    await txn.wait()
-  
-    // Mint another NFT for fun.
-    txn = await nftContract.makeAnEpicNFT()
-    // Wait for it to be mined.
-    await txn.wait()
-  
-  };
-  
-  const runMain = async () => {
-    try {
-      await main();
-      process.exit(0);
-    } catch (error) {
-      console.log(error);
-      process.exit(1);
-    }
-  };
-  
-  runMain();
+async function main() {
+  const [deployer] = await ethers.getSigners();
+
+  console.log("Deploying contracts with the account:", deployer.address);
+
+  console.log("Account balance:", (await deployer.getBalance()).toString());
+
+  const Token = await ethers.getContractFactory("MyEpicNFT");
+  const token = await Token.deploy();
+
+  console.log("Token address:", token.address);
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
